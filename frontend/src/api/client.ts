@@ -10,20 +10,42 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+function formatApiDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item: unknown) => {
+      if (!item || typeof item !== "object") return String(item);
+      const issue = item as { loc?: unknown[]; msg?: unknown };
+      const location = Array.isArray(issue.loc)
+        ? issue.loc.filter((part) => part !== "body").map(String).join(".")
+        : "";
+      const message = typeof issue.msg === "string" ? issue.msg : JSON.stringify(item);
+      return location ? `${location}: ${message}` : message;
+    });
+    return messages.join("; ");
+  }
+  if (detail && typeof detail === "object") return JSON.stringify(detail);
+  return null;
+}
+
+async function responseError(response: Response): Promise<Error> {
+  let message = `Request failed (${response.status})`;
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    message = formatApiDetail(body.detail) ?? message;
+  } catch {
+    // Keep the status-based message when an error response has no JSON body.
+  }
+  return new Error(message);
+}
+
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { Accept: "application/json" },
     signal,
   });
   if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
-    try {
-      const body = (await response.json()) as { detail?: string };
-      detail = body.detail ?? detail;
-    } catch {
-      // Keep the status-based message when an error response has no JSON body.
-    }
-    throw new Error(detail);
+    throw await responseError(response);
   }
   return (await response.json()) as T;
 }
@@ -104,11 +126,7 @@ export function postScenario(
     body: JSON.stringify(request),
     signal,
   }).then(async (response) => {
-    if (!response.ok) {
-      let detail = `Request failed (${response.status})`;
-      try { detail = ((await response.json()) as { detail?: string }).detail ?? detail; } catch { /* retain status message */ }
-      throw new Error(detail);
-    }
+    if (!response.ok) throw await responseError(response);
     return (await response.json()) as ScenarioResponse;
   });
 }
