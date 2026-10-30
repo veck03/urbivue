@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local dependency and interpreter caches
+.uv-cache/
+.uv-python/
+
+# Large source data and model artifacts are local inputs, not Git assets
+data/raw/
+data/processed/
+artifacts/models/
+
+# Local configuration and credentials
+.env
